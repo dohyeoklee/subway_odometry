@@ -61,7 +61,7 @@ def df_huristic_cleaning(df):
     return df
 
 if __name__ == '__main__':
-    debug_list = ['Time']
+    #debug_list = ['Time']
     car_data_filter_list = ['Time','Next Train ID','Final Train ID',\
         'Distance from station','Train Speed']
     ter_data_filter_list = ['Time','BS_1_1','RSRP_1_1','RSSI_1_1','RSRQ_1_1',\
