@@ -21,19 +21,17 @@ class df_memory(object):
         groups = self.df.groupby('Final Train ID')
         df_re = groups.get_group(1)
         df_up = groups.get_group(27)
-        print(df_re)
-        print(df_up)
         up_groups = df_up.groupby('Next Train ID')
         re_groups = df_re.groupby('Next Train ID')
         up_idxs = list(map(lambda x: 2*x,range(3,29))) #even num. btw 6~56
         re_idxs = list(map(lambda x: 2*x+1,range(1,27))) #odd num. btw 3~53
         for idx in up_idxs:
             df = up_groups.get_group(idx)
-            _dest = os.path.join(dest,"up_" + str(idx) + ".csv")
+            _dest = os.path.join(dest,"up_" + '{:02d}'.format(idx) + ".csv")
             df.to_csv(_dest,index=False)
         for idx in re_idxs:
             df = re_groups.get_group(idx)
-            _dest = os.path.join(dest,"re_" + str(idx) + ".csv")
+            _dest = os.path.join(dest,"re_" + '{:02d}'.format(idx) + ".csv")
             df.to_csv(_dest,index=False)
 
     def debug(self):
