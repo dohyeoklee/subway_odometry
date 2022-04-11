@@ -38,13 +38,13 @@ class SubwayDataset(Dataset):
 		pass
 
 class Mlp(nn.Module):
-	def __init__(self):
+	def __init__(self,hidden_size):
 		super(Mlp,self).__init__()
-		self.fc1 = nn.Linear(in_features=8,out_features=4,bias=False)
-		self.fc2 = nn.Linear(in_features=4,out_features=2,bias=False)
+		self.fc1 = nn.Linear(in_features=8,out_features=hidden_size,bias=False)
+		self.fc2 = nn.Linear(in_features=hidden_size,out_features=2,bias=False)
 
 	def forward(self,x):
-		x = F.relu(self.fc1(x))
+		x = self.fc1(x)
 		return self.fc2(x)
 
 if __name__ == '__main__':
@@ -52,11 +52,21 @@ if __name__ == '__main__':
 	target_scenario = "re_03.csv" # using data_list = os.listdir() for all
 	data_dir = os.path.join(root_dir,"processed_data/split",target_scenario)
 
-	dataset = SubwayDataset(path=data_dir,train=True)	
-	dataloader = DataLoader(dataset,batch_size=8,shuffle=True)
+	seed = 20220411
+	batch_size = 16
+	hidden_size = 8
 
-	model = Mlp()
-	optimizer = torch.optim.SGD(model.parameters(),lr=1e-5)
+	#device = 'cuda' if torch.cuda.is_available() else 'cpu'
+	np.random.seed(seed)
+	torch.manual_seed(seed)
+	#if device == 'cuda':
+	#	torch.cuda.manual_seed_all(seed)
+
+	dataset = SubwayDataset(path=data_dir,train=True)	
+	dataloader = DataLoader(dataset,batch_size=batch_size,shuffle=True)
+
+	model = Mlp(hidden_size)
+	optimizer = torch.optim.Adam(model.parameters(),lr=1e-2)
 
 	num_epoch = 50
 	for epoch in range(num_epoch + 1):
@@ -67,6 +77,6 @@ if __name__ == '__main__':
 			optimizer.zero_grad()
 			loss.backward()
 			optimizer.step()
-			print('Epoch {:4d}/{} Batch {}/{} loss: {:.6f}' \
+			print('Epoch {:4d}/{} Batch {}/{} avg. loss: {:.6f}' \
 				.format(epoch,num_epoch,batch_idx+1,len(dataloader), \
-				loss.item()))
+				loss.item() / batch_size))
