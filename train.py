@@ -53,7 +53,7 @@ if __name__ == '__main__':
 	data_dir = os.path.join(root_dir,"processed_data/split",target_scenario)
 
 	seed = 20220411
-	batch_size = 16
+	batch_size = 8
 	hidden_size = 8
 
 	#device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -66,6 +66,7 @@ if __name__ == '__main__':
 	dataloader = DataLoader(dataset,batch_size=batch_size,shuffle=True)
 
 	model = Mlp(hidden_size)
+	# add weight initialization
 	optimizer = torch.optim.Adam(model.parameters(),lr=1e-2)
 
 	num_epoch = 100
@@ -79,4 +80,4 @@ if __name__ == '__main__':
 			optimizer.step()
 			print('Epoch {:4d}/{} Batch {}/{} avg. loss: {:.6f}' \
 				.format(epoch,num_epoch,batch_idx+1,len(dataloader), \
-				loss.item() / batch_size))
+				loss.item()))
