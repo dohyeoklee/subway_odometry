@@ -68,7 +68,7 @@ if __name__ == '__main__':
 	model = Mlp(hidden_size)
 	optimizer = torch.optim.Adam(model.parameters(),lr=1e-2)
 
-	num_epoch = 50
+	num_epoch = 100
 	for epoch in range(num_epoch + 1):
 		for batch_idx, samples in enumerate(dataloader):
 			x_train, y_train = samples
