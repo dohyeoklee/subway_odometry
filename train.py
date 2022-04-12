@@ -41,11 +41,13 @@ class Mlp(nn.Module):
 	def __init__(self,hidden_size):
 		super(Mlp,self).__init__()
 		self.fc1 = nn.Linear(in_features=8,out_features=hidden_size,bias=False)
-		self.fc2 = nn.Linear(in_features=hidden_size,out_features=2,bias=False)
+		self.fc2 = nn.Linear(in_features=hidden_size,out_features=4,bias=False)
+		self.fc3 = nn.Linear(in_features=4,out_features=2,bias=False)
 
 	def forward(self,x):
-		x = self.fc1(x)
-		return self.fc2(x)
+		x = F.relu(self.fc1(x))
+		x = F.relu(self.fc2(x))
+		return self.fc3(x)
 
 if __name__ == '__main__':
 	root_dir = "./data"
@@ -67,7 +69,7 @@ if __name__ == '__main__':
 
 	model = Mlp(hidden_size)
 	# add weight initialization
-	optimizer = torch.optim.Adam(model.parameters(),lr=1e-2)
+	optimizer = torch.optim.Adam(model.parameters(),lr=5e-2)
 
 	num_epoch = 100
 	for epoch in range(num_epoch + 1):
