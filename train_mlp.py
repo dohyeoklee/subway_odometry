@@ -10,10 +10,23 @@ from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import SubsetRandomSampler
 
-class SubwayDataset(Dataset):
-	def __init__(self,path):
-		self.train_x_data,self.train_y_data = self.huristic_processing(path)
+class Scaler(object):
+	def __init__(self):
+		pass
 
+class SubwayDataset(Dataset):
+	def __init__(self,path,scaling=True):
+		self.train_x_data,self.train_y_data = self.huristic_processing(path)
+		if scaling:
+			_x_scaled = np.array(self.train_x_data)
+			x_min = np.min(_x_scaled,axis=0)
+			x_max = np.max(_x_scaled,axis=0)
+			x_range = np.reciprocal(x_max - x_min,dtype=float)
+			x_min_arr = np.repeat(np.array([x_min]),repeats=_x_scaled.shape[0],axis=0)
+			x_range_arr = np.repeat(np.array([x_range]),repeats=_x_scaled.shape[0],axis=0)
+			x_scaled = np.multiply((_x_scaled - x_min_arr),x_range_arr)
+			self.train_x_data = x_scaled.tolist()
+			
 	def __len__(self):
 		return len(self.train_x_data)
 
@@ -28,6 +41,8 @@ class SubwayDataset(Dataset):
 		df.drop(['Final Train ID'],axis=1,inplace=True)
 		result = df.groupby(['BS_1_1','RSRP_1_1','RSSI_1_1','RSRQ_1_1','BS_2_1','RSRP_2_1','RSSI_2_1','RSRQ_2_1']).aggregate([np.mean,np.std])
 		result = result.fillna(0)['Distance from station']
+		#print(len(result[result['std'] > 20].index))
+		result.drop(result[result['std'] > 20].index,inplace=True)
 		input_list = result.index.tolist()
 		input_list = list(map(list,input_list))
 		label_list = result.values.tolist()
@@ -70,7 +85,7 @@ if __name__ == '__main__':
 	#if device == 'cuda':
 	#	torch.cuda.manual_seed_all(seed)
 
-	dataset = SubwayDataset(path=data_dir)
+	dataset = SubwayDataset(path=data_dir,scaling=True)
 	if test:
 		dataset_size = len(dataset)
 		idxs = list(range(dataset_size))
@@ -88,7 +103,7 @@ if __name__ == '__main__':
 	# add weight initialization
 	optimizer = torch.optim.Adam(model.parameters(),lr=lr)
 
-	num_epoch = 200
+	num_epoch = 500
 	for epoch in range(num_epoch + 1):
 		for batch_idx, samples in enumerate(train_dataloader):
 			x_train, y_train = samples
@@ -121,7 +136,9 @@ if __name__ == '__main__':
 		for batch_idx, samples in enumerate(test_dataloader):
 			x_test, y_test = samples
 			pred = model(x_test)
+			pred_infer = pred[0][0].item() + np.random.rand(1)*pred[0][1].item()
+			gt_infer = y_test[0][0].item() + np.random.rand(1)*y_test[0][1].item()
 			#loss = F.mse_loss(pred,y_train)
-			error = error + torch.abs(pred[0][0]-y_test[0][0]).item()
+			error = float(error + abs(pred_infer-gt_infer))
 		error = error / len(test_dataloader)
-		print('avg. loss: {:.6f}'.format(error))
+		print('avg. error: {:.6f}'.format(error))
