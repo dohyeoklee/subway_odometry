@@ -53,7 +53,6 @@ class Mlp(nn.Module):
 		self.fc1 = nn.Linear(in_features=8,out_features=hidden_size,bias=True)
 		self.dropout1 = nn.Dropout(0.1)
 		self.fc2 = nn.Linear(in_features=hidden_size,out_features=hidden_size,bias=True)
-		self.dropout2 = nn.Dropout(0.1)
 		self.fc3 = nn.Linear(in_features=hidden_size,out_features=4,bias=True)
 		self.fc4 = nn.Linear(in_features=4,out_features=2,bias=True)
 
@@ -61,7 +60,6 @@ class Mlp(nn.Module):
 		x = F.relu(self.fc1(x))
 		#x = self.dropout1(x)
 		x = F.relu(x + self.fc2(x))
-		#x = self.dropout2(x)
 		x = F.relu(self.fc3(x))
 		return self.fc4(x)
 
@@ -158,5 +156,3 @@ if __name__ == '__main__':
 			'''
 	min_error = min(error_list)
 	print('min error: {:.6f}'.format(min_error))
-
-		
