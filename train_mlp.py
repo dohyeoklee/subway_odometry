@@ -60,26 +60,25 @@ class Mlp(nn.Module):
 	def forward(self,x):
 		x = F.relu(self.fc1(x))
 		#x = self.dropout1(x)
-		x = F.relu(self.fc2(x))
+		x = F.relu(x + self.fc2(x))
 		#x = self.dropout2(x)
 		x = F.relu(self.fc3(x))
 		return self.fc4(x)
 
-def test_model(model,test_dataloader,epoch):
+def test_model(model,test_dataloader):
 	error = 0.0
 	for batch_idx, samples in enumerate(test_dataloader):
 		x_test, y_test = samples
 		pred = model(x_test)
 		pred_infer = pred[0][0].item() + np.random.rand(1)*pred[0][1].item()
 		gt_infer = y_test[0][0].item() + np.random.rand(1)*y_test[0][1].item()
-		#loss = F.mse_loss(pred,y_train)
 		error = float(error + abs(pred_infer-gt_infer))
 	error = error / len(test_dataloader)
-	print('Epoch {:4d}/{}, avg. error: {:.6f}'.format(epoch,num_epoch,error))
+	return error
 
 def init_weights(m):
     if isinstance(m, nn.Linear):
-        torch.nn.init.xavier_uniform(m.weight,gain=3)
+        torch.nn.init.xavier_uniform(m.weight,gain=4)
         m.bias.data.fill_(0.01)
 
 if __name__ == '__main__':
@@ -123,6 +122,7 @@ if __name__ == '__main__':
 	scheduler = torch.optim.lr_scheduler.StepLR(optimizer,step_size=500,gamma=0.2)
 
 	num_epoch = 3000
+	error = 0.0
 	for epoch in range(num_epoch + 1):
 		for batch_idx, samples in enumerate(train_dataloader):
 			x_train, y_train = samples
@@ -137,7 +137,9 @@ if __name__ == '__main__':
 		scheduler.step()
 
 		if test:
-			test_model(model,test_dataloader,epoch)
+			error = test_model(model,test_dataloader)
+			print('Epoch {:4d}/{}, avg. error: {:.6f}'.format(epoch,num_epoch,error))
+			error_list.append(error)
 			'''
 			root_dir = "./data"
 			target_scenario = "re_05.csv" # using data_list = os.listdir() for all
@@ -152,5 +154,7 @@ if __name__ == '__main__':
 			test_sampler = SubsetRandomSampler(test_idxs)
 			test_dataloader = DataLoader(dataset,batch_size=1,sampler=test_sampler)
 			'''
+		min_error = min(error_list)
+		print('min error: {:.6f}'.format(min_error))
 
 		
