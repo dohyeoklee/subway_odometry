@@ -123,6 +123,8 @@ if __name__ == '__main__':
 
 	num_epoch = 3000
 	error = 0.0
+	error_list = []
+
 	for epoch in range(num_epoch + 1):
 		for batch_idx, samples in enumerate(train_dataloader):
 			x_train, y_train = samples
@@ -154,7 +156,7 @@ if __name__ == '__main__':
 			test_sampler = SubsetRandomSampler(test_idxs)
 			test_dataloader = DataLoader(dataset,batch_size=1,sampler=test_sampler)
 			'''
-		min_error = min(error_list)
-		print('min error: {:.6f}'.format(min_error))
+	min_error = min(error_list)
+	print('min error: {:.6f}'.format(min_error))
 
 		
