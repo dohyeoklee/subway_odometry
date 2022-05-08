@@ -2,7 +2,6 @@ import pandas as pd
 import os
 import numpy as np
 import matplotlib.pyplot as plt
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -69,14 +68,14 @@ class Mlp(nn.Module):
 		self.fc1 = nn.Linear(in_features=8,out_features=hidden_size,bias=True)
 		self.dropout1 = nn.Dropout(0.1)
 		self.fc2 = nn.Linear(in_features=hidden_size,out_features=hidden_size,bias=True)
-		self.fc3 = nn.Linear(in_features=hidden_size,out_features=4,bias=True)
-		self.fc4 = nn.Linear(in_features=4,out_features=2,bias=True)
+		self.fc3 = nn.Linear(in_features=hidden_size,out_features=hidden_size,bias=True)
+		self.fc4 = nn.Linear(in_features=hidden_size,out_features=2,bias=True)
 
 	def forward(self,x):
 		x = F.relu(self.fc1(x))
 		#x = self.dropout1(x)
 		x = F.relu(x + self.fc2(x))
-		x = F.relu(self.fc3(x))
+		x = F.relu(x + self.fc3(x))
 		return self.fc4(x)
 
 def test_model(model,test_dataloader,device):
@@ -96,12 +95,11 @@ def init_weights(m):
         torch.nn.init.xavier_uniform_(m.weight,gain=4)
         m.bias.data.fill_(0.1)
 
-if __name__ == '__main__':
+def train(seed):
 	root_dir = "./data"
 	target_scenario = "re_03.csv" # using data_list = os.listdir() for all
 	data_dir = os.path.join(root_dir,"processed_data/split",target_scenario)
 
-	seed = 20220502
 	batch_size = 32
 	hidden_size = 12
 	lr = 5e-2
@@ -127,10 +125,7 @@ if __name__ == '__main__':
 	model = model.to(device)
 	model.apply(init_weights)
 	optimizer = torch.optim.Adam(model.parameters(),lr=lr)
-	#scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer=optimizer,\
-	#			lr_lambda=lambda epoch: 0.99 ** epoch,
-	#			last_epoch=-1,verbose=False)
-	scheduler = torch.optim.lr_scheduler.StepLR(optimizer,step_size=500,gamma=0.2)
+	scheduler = torch.optim.lr_scheduler.StepLR(optimizer,step_size=500,gamma=0.8)
 
 	num_epoch = 3000
 	error = 0.0
@@ -141,7 +136,9 @@ if __name__ == '__main__':
 			x_train, y_train = samples
 			x_train, y_train = x_train.to(device), y_train.to(device)
 			pred = model(x_train)
-			loss = F.mse_loss(pred,y_train)
+			#loss = F.mse_loss(pred,y_train)
+			loss_ = nn.SmoothL1Loss()
+			loss = loss_(pred,y_train)
 			optimizer.zero_grad()
 			loss.backward()
 			optimizer.step()
@@ -154,19 +151,11 @@ if __name__ == '__main__':
 			error = test_model(model,test_dataloader,device)
 			print('Epoch {:4d}/{}, error: {:.6f}'.format(epoch,num_epoch,error))
 			error_list.append(error)
-			'''
-			root_dir = "./data"
-			target_scenario = "re_05.csv" # using data_list = os.listdir() for all
-			data_dir = os.path.join(root_dir,"processed_data/split",target_scenario)
-		
-			dataset = SubwayDataset(path=data_dir)
-			dataset_size = len(dataset)
-			idxs = list(range(dataset_size))
-			split = int(np.floor(0.2*dataset_size))
-			np.random.shuffle(idxs)
-			test_idxs = idxs[:split]
-			test_sampler = SubsetRandomSampler(test_idxs)
-			test_dataloader = DataLoader(dataset,batch_size=1,sampler=test_sampler)
-			'''
 	min_error = min(error_list)
 	print('min error: {:.6f}'.format(min_error))
+
+if __name__ == '__main__':
+	#seeds = [20220502,20220506,20220505]
+	seeds = [20220502]
+	for seed in seeds:
+		train(seed)
