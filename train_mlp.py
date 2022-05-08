@@ -11,18 +11,30 @@ from torch.utils.data import DataLoader
 from torch.utils.data.sampler import SubsetRandomSampler
 
 class SubwayDataset(Dataset):
-	def __init__(self,path,scaling=True):
-		self.train_x_data,self.train_y_data = self.huristic_processing(path)
-		if scaling:
-			_x_scaled = np.array(self.train_x_data)
-			x_min = np.min(_x_scaled,axis=0)
-			x_max = np.max(_x_scaled,axis=0)
-			x_range = np.reciprocal(x_max - x_min,dtype=float)
-			x_min_arr = np.repeat(np.array([x_min]),repeats=_x_scaled.shape[0],axis=0)
-			x_range_arr = np.repeat(np.array([x_range]),repeats=_x_scaled.shape[0],axis=0)
-			x_scaled = np.multiply((_x_scaled - x_min_arr),x_range_arr)
-			self.train_x_data = x_scaled.tolist()
-			
+	def __init__(self,path,test=True,scaling=True):
+		if test:
+			x_data,self.train_y_data = self.huristic_processing(path)
+			dataset_size = len(x_data)
+			idxs = list(range(dataset_size))
+			split = int(np.floor(0.2*dataset_size))
+			np.random.shuffle(idxs)
+			train_idxs, test_idxs = idxs[split:], idxs[:split]
+			self.train_sampler = SubsetRandomSampler(train_idxs)
+			self.test_sampler = SubsetRandomSampler(test_idxs)
+
+			if scaling:
+				_x_train = np.array([x_data[i] for i in train_idxs])
+				_x_data = np.array(x_data)
+				x_min = np.min(_x_train,axis=0)
+				x_max = np.max(_x_train,axis=0)
+				x_range = np.reciprocal(x_max - x_min,dtype=float)
+				x_min_arr = np.repeat(np.array([x_min]),repeats=_x_data.shape[0],axis=0)
+				x_range_arr = np.repeat(np.array([x_range]),repeats=_x_data.shape[0],axis=0)
+				x_scaled = np.multiply((_x_data - x_min_arr),x_range_arr)
+				self.train_x_data = x_scaled.tolist()
+		else:
+			self.train_x_data,self.train_y_data = self.huristic_processing(path)
+		
 	def __len__(self):
 		return len(self.train_x_data)
 
@@ -35,7 +47,8 @@ class SubwayDataset(Dataset):
 		df = pd.read_csv(path)
 		df.drop(['Next Train ID'],axis=1,inplace=True)
 		df.drop(['Final Train ID'],axis=1,inplace=True)
-		result = df.groupby(['BS_1_1','RSRP_1_1','RSSI_1_1','RSRQ_1_1','BS_2_1','RSRP_2_1','RSSI_2_1','RSRQ_2_1']).aggregate([np.mean,np.std])
+		result = df.groupby(['BS_1_1','RSRP_1_1','RSSI_1_1','RSRQ_1_1',\
+			'BS_2_1','RSRP_2_1','RSSI_2_1','RSRQ_2_1']).aggregate([np.mean,np.std])
 		result = result.fillna(0)['Distance from station']
 		#print(len(result[result['std'] > 20].index))
 		result.drop(result[result['std'] > 20].index,inplace=True)
@@ -43,6 +56,9 @@ class SubwayDataset(Dataset):
 		input_list = list(map(list,input_list))
 		label_list = result.values.tolist()
 		return input_list,label_list
+
+	def get_sampler(self):
+		return self.train_sampler,self.test_sampler
 
 	def debug(self):
 		pass
@@ -63,10 +79,11 @@ class Mlp(nn.Module):
 		x = F.relu(self.fc3(x))
 		return self.fc4(x)
 
-def test_model(model,test_dataloader):
+def test_model(model,test_dataloader,device):
 	error = 0.0
 	for batch_idx, samples in enumerate(test_dataloader):
 		x_test, y_test = samples
+		x_test, y_test = x_test.to(device), y_test.to(device)
 		pred = model(x_test)
 		pred_infer = pred[0][0].item() + np.random.rand(1)*pred[0][1].item()
 		gt_infer = y_test[0][0].item() + np.random.rand(1)*y_test[0][1].item()
@@ -76,8 +93,8 @@ def test_model(model,test_dataloader):
 
 def init_weights(m):
     if isinstance(m, nn.Linear):
-        torch.nn.init.xavier_uniform(m.weight,gain=4)
-        m.bias.data.fill_(0.01)
+        torch.nn.init.xavier_uniform_(m.weight,gain=4)
+        m.bias.data.fill_(0.1)
 
 if __name__ == '__main__':
 	root_dir = "./data"
@@ -89,29 +106,25 @@ if __name__ == '__main__':
 	hidden_size = 12
 	lr = 5e-2
 	test = True
+	scaling = True
 
 	#device = 'cuda' if torch.cuda.is_available() else 'cpu'
+	device = 'cpu'
 	np.random.seed(seed)
 	torch.manual_seed(seed)
-	#if device == 'cuda':
-	#	torch.cuda.manual_seed_all(seed)
+	if device == 'cuda':
+		torch.cuda.manual_seed_all(seed)
 
-	dataset = SubwayDataset(path=data_dir,scaling=True)
+	dataset = SubwayDataset(path=data_dir,test=test,scaling=scaling)
 	if test:
-		dataset_size = len(dataset)
-		idxs = list(range(dataset_size))
-		split = int(np.floor(0.2*dataset_size))
-		np.random.shuffle(idxs)
-		train_idxs, test_idxs = idxs[split:], idxs[:split]
-		train_sampler = SubsetRandomSampler(train_idxs)
-		test_sampler = SubsetRandomSampler(test_idxs)
+		train_sampler,test_sampler = dataset.get_sampler()
 		train_dataloader = DataLoader(dataset,batch_size=batch_size,sampler=train_sampler)
 		test_dataloader = DataLoader(dataset,batch_size=1,sampler=test_sampler)
 	else:
 		train_dataloader = DataLoader(dataset,batch_size=batch_size,shuffle=True)
 
 	model = Mlp(hidden_size)
-	# add weight initialization
+	model = model.to(device)
 	model.apply(init_weights)
 	optimizer = torch.optim.Adam(model.parameters(),lr=lr)
 	#scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer=optimizer,\
@@ -126,6 +139,7 @@ if __name__ == '__main__':
 	for epoch in range(num_epoch + 1):
 		for batch_idx, samples in enumerate(train_dataloader):
 			x_train, y_train = samples
+			x_train, y_train = x_train.to(device), y_train.to(device)
 			pred = model(x_train)
 			loss = F.mse_loss(pred,y_train)
 			optimizer.zero_grad()
@@ -137,8 +151,8 @@ if __name__ == '__main__':
 		scheduler.step()
 
 		if test:
-			error = test_model(model,test_dataloader)
-			print('Epoch {:4d}/{}, avg. error: {:.6f}'.format(epoch,num_epoch,error))
+			error = test_model(model,test_dataloader,device)
+			print('Epoch {:4d}/{}, error: {:.6f}'.format(epoch,num_epoch,error))
 			error_list.append(error)
 			'''
 			root_dir = "./data"
