@@ -48,7 +48,7 @@ class SubwayDataset(Dataset):
 		df.drop(['Final Train ID'],axis=1,inplace=True)
 		result = df.groupby(['BS_1_1','RSRP_1_1','RSSI_1_1','RSRQ_1_1',\
 			'BS_2_1','RSRP_2_1','RSSI_2_1','RSRQ_2_1']).aggregate([np.mean,np.std])
-		result = result.fillna(0)['Distance from station']
+		result = result.fillna(0.0)['Distance from station']
 		#print(len(result[result['std'] > 20].index))
 		result.drop(result[result['std'] > 20].index,inplace=True)
 		input_list = result.index.tolist()
@@ -59,21 +59,16 @@ class SubwayDataset(Dataset):
 	def get_sampler(self):
 		return self.train_sampler,self.test_sampler
 
-	def debug(self):
-		pass
-
 class Mlp(nn.Module):
 	def __init__(self,hidden_size):
 		super(Mlp,self).__init__()
 		self.fc1 = nn.Linear(in_features=8,out_features=hidden_size,bias=True)
-		self.dropout1 = nn.Dropout(0.1)
 		self.fc2 = nn.Linear(in_features=hidden_size,out_features=hidden_size,bias=True)
 		self.fc3 = nn.Linear(in_features=hidden_size,out_features=hidden_size,bias=True)
 		self.fc4 = nn.Linear(in_features=hidden_size,out_features=2,bias=True)
 
 	def forward(self,x):
 		x = F.relu(self.fc1(x))
-		#x = self.dropout1(x)
 		x = F.relu(x + self.fc2(x))
 		x = F.relu(x + self.fc3(x))
 		return self.fc4(x)
@@ -94,6 +89,11 @@ def init_weights(m):
     if isinstance(m, nn.Linear):
         torch.nn.init.xavier_uniform_(m.weight,gain=4)
         m.bias.data.fill_(0.1)
+
+def loss_fn(pred,target):
+	#loss = F.mse_loss(pred,target)
+	loss = F.smooth_l1_loss(pred,target)
+	return loss
 
 def train(seed):
 	root_dir = "./data"
@@ -124,7 +124,7 @@ def train(seed):
 	model = Mlp(hidden_size)
 	model = model.to(device)
 	model.apply(init_weights)
-	optimizer = torch.optim.Adam(model.parameters(),lr=lr)
+	optimizer = torch.optim.Adam(model.parameters(),lr=lr,weight_decay=1e-3) #weight_decay=1e-3
 	scheduler = torch.optim.lr_scheduler.StepLR(optimizer,step_size=500,gamma=0.8)
 
 	num_epoch = 3000
@@ -136,9 +136,7 @@ def train(seed):
 			x_train, y_train = samples
 			x_train, y_train = x_train.to(device), y_train.to(device)
 			pred = model(x_train)
-			#loss = F.mse_loss(pred,y_train)
-			loss_ = nn.SmoothL1Loss()
-			loss = loss_(pred,y_train)
+			loss = loss_fn(pred,y_train)
 			optimizer.zero_grad()
 			loss.backward()
 			optimizer.step()
@@ -148,14 +146,15 @@ def train(seed):
 		scheduler.step()
 
 		if test:
-			error = test_model(model,test_dataloader,device)
-			print('Epoch {:4d}/{}, error: {:.6f}'.format(epoch,num_epoch,error))
-			error_list.append(error)
+			with torch.no_grad():
+				error = test_model(model,test_dataloader,device)
+				print('Epoch {:4d}/{}, error: {:.6f}'.format(epoch,num_epoch,error))
+				error_list.append(error)
 	min_error = min(error_list)
 	print('min error: {:.6f}'.format(min_error))
 
 if __name__ == '__main__':
-	#seeds = [20220502,20220506,20220505]
-	seeds = [20220502]
+	#seeds = [20220502,20220506,20220505] #202205,1991
+	seeds = [1991]
 	for seed in seeds:
 		train(seed)
