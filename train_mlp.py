@@ -31,6 +31,8 @@ class SubwayDataset(Dataset):
 				x_range_arr = np.repeat(np.array([x_range]),repeats=_x_data.shape[0],axis=0)
 				x_scaled = np.multiply((_x_data - x_min_arr),x_range_arr)
 				self.train_x_data = x_scaled.tolist()
+			else:
+				self.train_x_data = x_data
 		else:
 			self.train_x_data,self.train_y_data = self.huristic_processing(path)
 		
@@ -148,13 +150,12 @@ def train(seed):
 		if test:
 			with torch.no_grad():
 				error = test_model(model,test_dataloader,device)
-				print('Epoch {:4d}/{}, error: {:.6f}'.format(epoch,num_epoch,error))
+				#print('Epoch {:4d}/{}, error: {:.6f}'.format(epoch,num_epoch,error))
 				error_list.append(error)
 	min_error = min(error_list)
 	print('min error: {:.6f}'.format(min_error))
 
 if __name__ == '__main__':
-	#seeds = [20220502,20220506,20220505] #202205,1991
-	seeds = [1991]
+	seeds = [1991,202205,20220502]
 	for seed in seeds:
 		train(seed)
