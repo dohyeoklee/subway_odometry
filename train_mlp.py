@@ -77,15 +77,19 @@ class Mlp(nn.Module):
 
 def test_model(model,test_dataloader,device):
 	error = 0.0
+	error_list = []
 	for batch_idx, samples in enumerate(test_dataloader):
 		x_test, y_test = samples
 		x_test, y_test = x_test.to(device), y_test.to(device)
 		pred = model(x_test)
 		pred_infer = pred[0][0].item() + np.random.rand(1)*pred[0][1].item()
 		gt_infer = y_test[0][0].item() + np.random.rand(1)*y_test[0][1].item()
-		error = float(error + abs(pred_infer-gt_infer))
-	error = error / len(test_dataloader)
-	return error
+		error = float(abs(pred_infer-gt_infer))
+		error_list.append(error)
+	#error = error / len(test_dataloader)
+	mean_error = np.mean(error_list)
+	max_error = np.max(error_list)
+	return mean_error,max_error
 
 def init_weights(m):
     if isinstance(m, nn.Linear):
@@ -131,7 +135,8 @@ def train(seed):
 
 	num_epoch = 3000
 	error = 0.0
-	error_list = []
+	mean_error_list = []
+	max_error_list = []
 
 	for epoch in range(num_epoch + 1):
 		for batch_idx, samples in enumerate(train_dataloader):
@@ -149,11 +154,15 @@ def train(seed):
 
 		if test:
 			with torch.no_grad():
-				error = test_model(model,test_dataloader,device)
-				#print('Epoch {:4d}/{}, error: {:.6f}'.format(epoch,num_epoch,error))
-				error_list.append(error)
-	min_error = min(error_list)
-	print('min error: {:.6f}'.format(min_error))
+				mean_error,max_error = test_model(model,test_dataloader,device)
+				print('Epoch {:4d}/{}, mean error: {:.6f}, max error: {:.6f}'\
+					.format(epoch,num_epoch,mean_error,max_error))
+				mean_error_list.append(mean_error)
+				max_error_list.append(max_error)
+	min_mean_error = min(mean_error_list)
+	min_max_error = min(max_error_list)
+	print('min mean error: {:.6f}, min max error: {:.6f}'.\
+		format(min_mean_error,min_max_error))
 
 if __name__ == '__main__':
 	seeds = [1991,202205,20220502]
