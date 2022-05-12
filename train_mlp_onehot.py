@@ -151,7 +151,6 @@ def train(seed):
 	print('min error: {:.6f}'.format(min_error))
 
 if __name__ == '__main__':
-	#github error testing
 	seeds = [1991,202205,20220502]
 	for seed in seeds:
 		train(seed)
