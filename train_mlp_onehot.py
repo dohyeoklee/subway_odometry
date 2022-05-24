@@ -50,10 +50,14 @@ class SubwayDataset(Dataset):
 		df.drop(['Final Train ID'],axis=1,inplace=True)
 		result = df.groupby(['BS_1_1','RSRP_1_1','RSSI_1_1','RSRQ_1_1',\
 			'BS_2_1','RSRP_2_1','RSSI_2_1','RSRQ_2_1']).aggregate([np.mean])
+		result = self.huristic_processing_equal_space(result)
 		input_list = result.index.tolist()
 		input_list = list(map(list,input_list))
-		label_list = result.values.tolist()
+		label_list = np.expand_dims(result.values,axis=1).tolist()
 		return input_list,label_list
+
+	def huristic_processing_equal_space(self,df):
+		return df.apply(lambda x: 10*int(x/10)+5,axis=1)
 
 	def get_sampler(self):
 		return self.train_sampler,self.test_sampler
@@ -73,14 +77,16 @@ class Mlp(nn.Module):
 		return self.fc4(x)
 
 def test_model(model,test_dataloader,device):
-	error = 0.0
+	error_list = []
 	for batch_idx, samples in enumerate(test_dataloader):
 		x_test, y_test = samples
 		x_test, y_test = x_test.to(device), y_test.to(device)
 		pred = model(x_test)
-		error = float(error + abs(pred[0][0].item()-y_test[0][0].item()))
-	error = error / len(test_dataloader)
-	return error
+		error = float(abs(pred[0][0].item()-y_test[0][0].item()))
+		error_list.append(error)
+	mean_error = np.mean(error_list)
+	max_error = np.max(error_list)
+	return mean_error,max_error
 
 def init_weights(m):
     if isinstance(m, nn.Linear):
@@ -125,8 +131,8 @@ def train(seed):
 	scheduler = torch.optim.lr_scheduler.StepLR(optimizer,step_size=500,gamma=0.8)
 
 	num_epoch = 3000
-	error = 0.0
-	error_list = []
+	mean_error_list = []
+	max_error_list = []
 
 	for epoch in range(num_epoch + 1):
 		for batch_idx, samples in enumerate(train_dataloader):
@@ -144,11 +150,15 @@ def train(seed):
 
 		if test:
 			with torch.no_grad():
-				error = test_model(model,test_dataloader,device)
-				print('Epoch {:4d}/{}, error: {:.6f}'.format(epoch,num_epoch,error))
-				error_list.append(error)
-	min_error = min(error_list)
-	print('min error: {:.6f}'.format(min_error))
+				mean_error,max_error = test_model(model,test_dataloader,device)
+				print('Epoch {:4d}/{}, mean error: {:.6f}, worst error: {:.6f}'\
+					.format(epoch,num_epoch,mean_error,max_error))
+				mean_error_list.append(mean_error)
+				max_error_list.append(max_error)
+	min_mean_error = min(mean_error_list)
+	min_max_error = min(max_error_list)
+	print('min mean error: {:.6f}, min worst error: {:.6f}'.\
+		format(min_mean_error,min_max_error))
 
 if __name__ == '__main__':
 	seeds = [1991,202205,20220502]

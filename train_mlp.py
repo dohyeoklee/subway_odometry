@@ -76,7 +76,6 @@ class Mlp(nn.Module):
 		return self.fc4(x)
 
 def test_model(model,test_dataloader,device):
-	error = 0.0
 	error_list = []
 	for batch_idx, samples in enumerate(test_dataloader):
 		x_test, y_test = samples
@@ -86,7 +85,6 @@ def test_model(model,test_dataloader,device):
 		gt_infer = y_test[0][0].item() + np.random.rand(1)*y_test[0][1].item()
 		error = float(abs(pred_infer-gt_infer))
 		error_list.append(error)
-	#error = error / len(test_dataloader)
 	mean_error = np.mean(error_list)
 	max_error = np.max(error_list)
 	return mean_error,max_error
@@ -97,7 +95,6 @@ def init_weights(m):
         m.bias.data.fill_(0.1)
 
 def loss_fn(pred,target):
-	#loss = F.mse_loss(pred,target)
 	loss = F.smooth_l1_loss(pred,target)
 	return loss
 
@@ -155,13 +152,13 @@ def train(seed):
 		if test:
 			with torch.no_grad():
 				mean_error,max_error = test_model(model,test_dataloader,device)
-				print('Epoch {:4d}/{}, mean error: {:.6f}, max error: {:.6f}'\
+				print('Epoch {:4d}/{}, mean error: {:.6f}, worst error: {:.6f}'\
 					.format(epoch,num_epoch,mean_error,max_error))
 				mean_error_list.append(mean_error)
 				max_error_list.append(max_error)
 	min_mean_error = min(mean_error_list)
 	min_max_error = min(max_error_list)
-	print('min mean error: {:.6f}, min max error: {:.6f}'.\
+	print('min mean error: {:.6f}, min worst error: {:.6f}'.\
 		format(min_mean_error,min_max_error))
 
 if __name__ == '__main__':

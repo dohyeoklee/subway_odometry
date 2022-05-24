@@ -26,17 +26,29 @@ class df_memory(object):
         up_idxs = list(map(lambda x: 2*x,range(3,29))) #even num. btw 6~56
         re_idxs = list(map(lambda x: 2*x+1,range(1,27))) #odd num. btw 3~53
         for idx in up_idxs:
-            df = up_groups.get_group(idx)
+            _df = up_groups.get_group(idx)
             _dest = os.path.join(dest,"up_" + '{:02d}'.format(idx) + ".csv")
-            df.to_csv(_dest,index=False)
+            _df.to_csv(_dest,index=False)
         for idx in re_idxs:
-            df = re_groups.get_group(idx)
+            _df = re_groups.get_group(idx)
             _dest = os.path.join(dest,"re_" + '{:02d}'.format(idx) + ".csv")
-            df.to_csv(_dest,index=False)
+            _df.to_csv(_dest,index=False)
+
+    def save_csv_up_re(self,dest):
+        groups = self.df.groupby('Final Train ID')
+        df_re = groups.get_group(1) #odd num. btw 3~53
+        df_re.drop(df_re[df_re['Next Train ID'] == 4].index,inplace=True) #odd num.
+        df_re.drop(df_re[df_re['Next Train ID'] == 55].index,inplace=True) #btw 3~53
+        df_up = groups.get_group(27)
+        df_up.drop(df_up[df_up['Next Train ID'] == 4].index,inplace=True) #btw 6~56
+        df_up.drop(df_up[df_up['Next Train ID'] == 55].index,inplace=True) #even num.
+        dest_up = os.path.join(dest,"up.csv")
+        df_up.to_csv(dest_up,index=False)
+        dest_re = os.path.join(dest,"re.csv")
+        df_re.to_csv(dest_re,index=False)
 
     def debug(self):
         print(self.df_num)
-        #print(self.df.count)
 
 def df_huristic_cleaning(df):
     #delete row which include NaN
@@ -59,7 +71,6 @@ def df_huristic_cleaning(df):
     return df
 
 if __name__ == '__main__':
-    #debug_list = ['Time']
     car_data_filter_list = ['Time','Next Train ID','Final Train ID',\
         'Distance from station','Train Speed']
     ter_data_filter_list = ['Time','BS_1_1','RSRP_1_1','RSSI_1_1','RSRQ_1_1',\
@@ -70,6 +81,7 @@ if __name__ == '__main__':
     ter_data_dir = os.path.join(data_dir,"raw_data/terminal_logging_data")
     csv_all_save_dir = os.path.join(data_dir,"processed_data/all")
     csv_split_save_dir = os.path.join(data_dir,"processed_data/split")
+    csv_up_re_save_dir = os.path.join(data_dir,"processed_data/up_re")
     car_data_list = os.listdir(car_data_dir)
 
     memory = df_memory()
@@ -87,9 +99,9 @@ if __name__ == '__main__':
         mer_df = car_df.merge(ter_df)
         #data cleaning
         mer_df = df_huristic_cleaning(mer_df)
-        #print(mer_df) #debug
         memory.store(mer_df)
     #memory.debug()
     #csv_all_name = os.path.join(csv_all_save_dir,"all.csv")
     #memory.save_csv_all(csv_all_name)
-    memory.save_csv_split_destination(csv_split_save_dir)
+    #memory.save_csv_split_destination(csv_split_save_dir)
+    memory.save_csv_up_re(csv_up_re_save_dir)
