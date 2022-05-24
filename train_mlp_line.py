@@ -77,7 +77,7 @@ class SubwayDataset(Dataset):
 		result = df.groupby(['Next Train ID']+COM_VAR_NAME).aggregate([np.mean,np.std])
 		result = result.fillna(0.0)['Distance from station']
 		#print(len(result[result['std'] > 20].index))
-		result.drop(result[result['std'] > 20].index,inplace=True)
+		result.drop(result[result['std'] > 10].index,inplace=True)
 		input_list = result.index.tolist()
 		input_list = list(map(list,input_list))
 		label_list = result.values.tolist()
@@ -135,9 +135,9 @@ def train(seed):
 	target_scenario = "up.csv"
 	data_dir = os.path.join(root_dir,"processed_data/up_re",target_scenario)
 
-	batch_size = 32
+	batch_size = 128
 	hidden_size = 12
-	lr = 5e-2
+	lr = 1e-2
 	test = True
 	scaling = True
 
