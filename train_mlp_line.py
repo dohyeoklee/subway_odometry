@@ -24,15 +24,8 @@ class SubwayDataset(Dataset):
 			self.test_sampler = SubsetRandomSampler(test_idxs)
 
 			if scaling:
-				_x_train = np.array([x_data[i] for i in train_idxs])
-				_x_data = np.array(x_data)
-				x_min = np.min(_x_train,axis=0)
-				x_max = np.max(_x_train,axis=0)
-				x_range = np.reciprocal(x_max - x_min,dtype=float)
-				x_min_arr = np.repeat(np.array([x_min]),repeats=_x_data.shape[0],axis=0)
-				x_range_arr = np.repeat(np.array([x_range]),repeats=_x_data.shape[0],axis=0)
-				x_scaled = np.multiply((_x_data - x_min_arr),x_range_arr)
-				self.train_x_data = x_scaled.tolist()
+				#self.train_x_data = self.min_max_scaler(x_data,train_idxs)
+				self.train_x_data = self.robust_scaler(x_data,train_idxs)
 			else:
 				self.train_x_data = x_data
 		else:
@@ -45,6 +38,30 @@ class SubwayDataset(Dataset):
 		x = torch.FloatTensor(self.train_x_data[idx])
 		y = torch.FloatTensor(self.train_y_data[idx])
 		return x,y
+
+	def min_max_scaler(self,x_data,train_idxs):
+		_x_train = np.array([x_data[i] for i in train_idxs])
+		_x_data = np.array(x_data)
+		x_min = np.min(_x_train,axis=0)
+		x_max = np.max(_x_train,axis=0)
+		x_range = np.reciprocal(x_max - x_min,dtype=float)
+		x_min_arr = np.repeat(np.array([x_min]),repeats=_x_data.shape[0],axis=0)
+		x_range_arr = np.repeat(np.array([x_range]),repeats=_x_data.shape[0],axis=0)
+		x_scaled = np.multiply((_x_data - x_min_arr),x_range_arr)
+		return x_scaled.tolist()
+
+	def robust_scaler(self,x_data,train_idxs):
+		_x_train = np.array([x_data[i] for i in train_idxs])
+		_x_data = np.array(x_data)
+		percentile = np.nanpercentile(_x_data,[25,50,75],axis=0)
+		x_1q = percentile[0]
+		x_med = percentile[1]
+		x_3q = percentile[2]
+		x_iqr = np.reciprocal(x_3q - x_1q,dtype=float)
+		x_med_arr = np.repeat(np.array([x_med]),repeats=_x_data.shape[0],axis=0)
+		x_iqr_arr = np.repeat(np.array([x_iqr]),repeats=_x_data.shape[0],axis=0)
+		x_scaled = np.multiply((_x_data - x_med_arr),x_iqr_arr)
+		return x_scaled.tolist()
 
 	def huristic_processing(self,path):
 		df = pd.read_csv(path)
@@ -76,8 +93,7 @@ class SubwayDataset(Dataset):
 
 		result = df.groupby(['Next Train ID']+COM_VAR_NAME).aggregate([np.mean,np.std])
 		result = result.fillna(0.0)['Distance from station']
-		#print(len(result[result['std'] > 20].index))
-		result.drop(result[result['std'] > 10].index,inplace=True)
+		result.drop(result[result['std'] > 5].index,inplace=True)
 		input_list = result.index.tolist()
 		input_list = list(map(list,input_list))
 		label_list = result.values.tolist()
@@ -118,8 +134,9 @@ def test_model(model,test_dataloader,device):
 		error = float(abs(pred_infer-gt_infer))
 		error_list.append(error)
 	mean_error = np.mean(error_list)
+	worst_5_error = np.nanpercentile(error_list,95,axis=0)
 	max_error = np.max(error_list)
-	return mean_error,max_error
+	return mean_error,worst_5_error,max_error
 
 def init_weights(m):
     if isinstance(m, nn.Linear):
@@ -130,16 +147,10 @@ def loss_fn(pred,target):
 	loss = F.smooth_l1_loss(pred,target)
 	return loss
 
-def train(seed):
+def train(seed,batch_size,hidden_size,lr,test,scaling):
 	root_dir = "./data"
 	target_scenario = "up.csv"
 	data_dir = os.path.join(root_dir,"processed_data/up_re",target_scenario)
-
-	batch_size = 128
-	hidden_size = 12
-	lr = 1e-2
-	test = True
-	scaling = True
 
 	device = 'cuda' if torch.cuda.is_available() else 'cpu'
 	#device = 'cpu'
@@ -161,11 +172,13 @@ def train(seed):
 	model.apply(init_weights)
 	optimizer = torch.optim.Adam(model.parameters(),lr=lr,weight_decay=1e-3) #weight_decay=1e-3
 	scheduler = torch.optim.lr_scheduler.StepLR(optimizer,step_size=500,gamma=0.8)
+	#scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer=optimizer,\
+	#			lr_lambda=lambda epoch: 0.99 ** epoch,last_epoch=-1,verbose=False)
 
-	num_epoch = 3000
-	error = 0.0
+	num_epoch = 2000
 	mean_error_list = []
 	max_error_list = []
+	worst_5_error_list = []
 
 	for epoch in range(num_epoch + 1):
 		for batch_idx, samples in enumerate(train_dataloader):
@@ -176,24 +189,29 @@ def train(seed):
 			optimizer.zero_grad()
 			loss.backward()
 			optimizer.step()
-			#print('Epoch {:4d}/{} Batch {}/{} avg. loss: {:.6f}' \
-			#	.format(epoch,num_epoch,batch_idx+1,len(train_dataloader), \
-			#	loss.item()))
 		scheduler.step()
 
 		if test:
 			with torch.no_grad():
-				mean_error,max_error = test_model(model,test_dataloader,device)
-				print('Epoch {:4d}/{}, mean error: {:.6f}, worst error: {:.6f}'\
-					.format(epoch,num_epoch,mean_error,max_error))
+				mean_error,worst_5_error,max_error = test_model(model,test_dataloader,device)
+				print('Epoch {:4d}/{}, mean error: {:.6f}, 95 percent error: {:.6f}, worst error: {:.6f}'\
+					.format(epoch,num_epoch,mean_error,worst_5_error,max_error))
 				mean_error_list.append(mean_error)
+				worst_5_error_list.append(worst_5_error)
 				max_error_list.append(max_error)
 	min_mean_error = min(mean_error_list)
+	min_worst_5_error = min(worst_5_error_list)
 	min_max_error = min(max_error_list)
-	print('min mean error: {:.6f}, min worst error: {:.6f}'.\
-		format(min_mean_error,min_max_error))
+	print('mean error: {:.6f}, 95 percent error: {:.6f}, worst error: {:.6f}'.\
+		format(min_mean_error,min_worst_5_error,min_max_error))
 
 if __name__ == '__main__':
 	seeds = [1991,202205,20220502]
+	batch_size = 128
+	hidden_size = 12
+	lr = 1e-2
+	test = True
+	scaling = True
+
 	for seed in seeds:
-		train(seed)
+		train(seed,batch_size,hidden_size,lr,test,scaling)
