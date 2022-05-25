@@ -1,5 +1,7 @@
 import pandas as pd
 import os
+import itertools
+from tqdm import tqdm
 import numpy as np
 import matplotlib.pyplot as plt
 import torch
@@ -24,8 +26,8 @@ class SubwayDataset(Dataset):
 			self.test_sampler = SubsetRandomSampler(test_idxs)
 
 			if scaling:
-				#self.train_x_data = self.min_max_scaler(x_data,train_idxs)
-				self.train_x_data = self.robust_scaler(x_data,train_idxs)
+				self.train_x_data = self.min_max_scaler(x_data,train_idxs)
+				#self.train_x_data = self.robust_scaler(x_data,train_idxs)
 			else:
 				self.train_x_data = x_data
 		else:
@@ -135,8 +137,8 @@ def test_model(model,test_dataloader,device):
 		error_list.append(error)
 	mean_error = np.mean(error_list)
 	worst_5_error = np.nanpercentile(error_list,95,axis=0)
-	max_error = np.max(error_list)
-	return mean_error,worst_5_error,max_error
+	worst_error = np.max(error_list)
+	return mean_error,worst_5_error,worst_error
 
 def init_weights(m):
     if isinstance(m, nn.Linear):
@@ -147,13 +149,12 @@ def loss_fn(pred,target):
 	loss = F.smooth_l1_loss(pred,target)
 	return loss
 
-def train(seed,batch_size,hidden_size,lr,test,scaling):
+def train(num_epoch,test,scaling,seed,batch_size,hidden_size,lr):
 	root_dir = "./data"
 	target_scenario = "up.csv"
 	data_dir = os.path.join(root_dir,"processed_data/up_re",target_scenario)
 
 	device = 'cuda' if torch.cuda.is_available() else 'cpu'
-	#device = 'cpu'
 	np.random.seed(seed)
 	torch.manual_seed(seed)
 	if device == 'cuda':
@@ -171,13 +172,12 @@ def train(seed,batch_size,hidden_size,lr,test,scaling):
 	model = model.to(device)
 	model.apply(init_weights)
 	optimizer = torch.optim.Adam(model.parameters(),lr=lr,weight_decay=1e-3) #weight_decay=1e-3
-	scheduler = torch.optim.lr_scheduler.StepLR(optimizer,step_size=500,gamma=0.8)
+	scheduler = torch.optim.lr_scheduler.StepLR(optimizer,step_size=100,gamma=0.9)
 	#scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer=optimizer,\
 	#			lr_lambda=lambda epoch: 0.99 ** epoch,last_epoch=-1,verbose=False)
 
-	num_epoch = 2000
 	mean_error_list = []
-	max_error_list = []
+	worst_error_list = []
 	worst_5_error_list = []
 
 	for epoch in range(num_epoch + 1):
@@ -193,25 +193,37 @@ def train(seed,batch_size,hidden_size,lr,test,scaling):
 
 		if test:
 			with torch.no_grad():
-				mean_error,worst_5_error,max_error = test_model(model,test_dataloader,device)
-				print('Epoch {:4d}/{}, mean error: {:.6f}, 95 percent error: {:.6f}, worst error: {:.6f}'\
-					.format(epoch,num_epoch,mean_error,worst_5_error,max_error))
+				mean_error,worst_5_error,worst_error = test_model(model,test_dataloader,device)
+				#print('Epoch {:4d}/{}, mean error: {:.6f}, 95 percent error: {:.6f}, worst error: {:.6f}'\
+				#	.format(epoch,num_epoch,mean_error,worst_5_error,worst_error))
 				mean_error_list.append(mean_error)
 				worst_5_error_list.append(worst_5_error)
-				max_error_list.append(max_error)
+				worst_error_list.append(worst_error)
 	min_mean_error = min(mean_error_list)
 	min_worst_5_error = min(worst_5_error_list)
-	min_max_error = min(max_error_list)
-	print('mean error: {:.6f}, 95 percent error: {:.6f}, worst error: {:.6f}'.\
-		format(min_mean_error,min_worst_5_error,min_max_error))
+	min_worst_error = min(worst_error_list)
+	#print('mean error: {:.6f}, 95 percent error: {:.6f}, worst error: {:.6f}'.\
+	#	format(min_mean_error,min_worst_5_error,min_worst_error))
+	return min_worst_error
 
 if __name__ == '__main__':
 	seeds = [1991,202205,20220502]
-	batch_size = 128
-	hidden_size = 12
-	lr = 1e-2
+	batch_space = [16,32,64,128,256]
+	hidden_space = [8,9,10,11,12,13]
+	lr_space = [i**(-j) for i in range(1,10) for j in [2,3]]
+	hyperparam_space = itertools.product(batch_space,hidden_space,lr_space)
+	hyperparam_space_list = [item for item in hyperparam_space]
 	test = True
 	scaling = True
+	num_epoch = 2000
 
-	for seed in seeds:
-		train(seed,batch_size,hidden_size,lr,test,scaling)
+	optim_val_score = 1e5
+
+	for batch_size,hidden_size,lr in tqdm(hyperparam_space_list,desc="outer loop"):
+		val_score = 0.0
+		for seed in tqdm(seeds,desc="inner loop",leave = False):
+			val_score = val_score + train(num_epoch,test,scaling,seed,batch_size,hidden_size,lr)
+			if val_score < optim_val_score:
+				optim_val_score = val_score
+				optim_param = [batch_size,hidden_size,lr]
+	print(optim_param)
