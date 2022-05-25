@@ -180,7 +180,7 @@ def train(num_epoch,test,scaling,seed,batch_size,hidden_size,lr):
 	worst_error_list = []
 	worst_5_error_list = []
 
-	for epoch in range(num_epoch + 1):
+	for epoch in tqdm(range(num_epoch + 1),desc="epoch loop",leave = False):
 		for batch_idx, samples in enumerate(train_dataloader):
 			x_train, y_train = samples
 			x_train, y_train = x_train.to(device), y_train.to(device)
@@ -207,21 +207,21 @@ def train(num_epoch,test,scaling,seed,batch_size,hidden_size,lr):
 	return min_worst_error
 
 if __name__ == '__main__':
-	seeds = [1991,202205,20220502]
-	batch_space = [16,32,64,128,256]
-	hidden_space = [8,9,10,11,12,13]
-	lr_space = [i**(-j) for i in range(1,10) for j in [2,3]]
+	seeds = [1991,202205]
+	batch_space = [32,64,128]
+	hidden_space = [12]
+	lr_space = [i*10**(-3) for i in range(1,6)]
 	hyperparam_space = itertools.product(batch_space,hidden_space,lr_space)
 	hyperparam_space_list = [item for item in hyperparam_space]
 	test = True
 	scaling = True
-	num_epoch = 2000
+	num_epoch = 1500
 
 	optim_val_score = 1e5
 
-	for batch_size,hidden_size,lr in tqdm(hyperparam_space_list,desc="outer loop"):
+	for batch_size,hidden_size,lr in tqdm(hyperparam_space_list,desc="hyperparam loop"):
 		val_score = 0.0
-		for seed in tqdm(seeds,desc="inner loop",leave = False):
+		for seed in tqdm(seeds,desc="seed loop",leave = False):
 			val_score = val_score + train(num_epoch,test,scaling,seed,batch_size,hidden_size,lr)
 			if val_score < optim_val_score:
 				optim_val_score = val_score
