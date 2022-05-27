@@ -155,6 +155,7 @@ def train(num_epoch,test,scaling,seed,batch_size,hidden_size,lr):
 	data_dir = os.path.join(root_dir,"processed_data/up_re",target_scenario)
 
 	device = 'cuda' if torch.cuda.is_available() else 'cpu'
+	#device = 'cpu'
 	np.random.seed(seed)
 	torch.manual_seed(seed)
 	if device == 'cuda':
@@ -202,28 +203,42 @@ def train(num_epoch,test,scaling,seed,batch_size,hidden_size,lr):
 	min_mean_error = min(mean_error_list)
 	min_worst_5_error = min(worst_5_error_list)
 	min_worst_error = min(worst_error_list)
-	#print('mean error: {:.6f}, 95 percent error: {:.6f}, worst error: {:.6f}'.\
-	#	format(min_mean_error,min_worst_5_error,min_worst_error))
+	print('mean error: {:.6f}, 95 percent error: {:.6f}, worst error: {:.6f}'.\
+		format(min_mean_error,min_worst_5_error,min_worst_error))
 	return min_worst_error
 
 if __name__ == '__main__':
-	seeds = [1991,202205]
-	batch_space = [32,64,128]
-	hidden_space = [12]
-	lr_space = [i*10**(-3) for i in range(1,6)]
-	hyperparam_space = itertools.product(batch_space,hidden_space,lr_space)
-	hyperparam_space_list = [item for item in hyperparam_space]
-	test = True
-	scaling = True
-	num_epoch = 1500
+	hyperparam_search = False
 
-	optim_val_score = 1e5
+	if hyperparam_search:
+		seeds = [1991,202205]
+		batch_space = [32,64,128]
+		hidden_space = [12]
+		lr_space = [i*10**(-3) for i in range(1,6)]
+		hyperparam_space = itertools.product(batch_space,hidden_space,lr_space)
+		hyperparam_space_list = [item for item in hyperparam_space]
+		test = True
+		scaling = True
+		num_epoch = 1500
+	
+		optim_val_score = 1e5
+	
+		for batch_size,hidden_size,lr in tqdm(hyperparam_space_list,desc="hyperparam loop"):
+			val_score = 0.0
+			for seed in tqdm(seeds,desc="seed loop",leave = False):
+				val_score = val_score + train(num_epoch,test,scaling,seed,batch_size,hidden_size,lr)
+				if val_score < optim_val_score:
+					optim_val_score = val_score
+					optim_param = [batch_size,hidden_size,lr]
+		print(optim_param)
 
-	for batch_size,hidden_size,lr in tqdm(hyperparam_space_list,desc="hyperparam loop"):
-		val_score = 0.0
-		for seed in tqdm(seeds,desc="seed loop",leave = False):
-			val_score = val_score + train(num_epoch,test,scaling,seed,batch_size,hidden_size,lr)
-			if val_score < optim_val_score:
-				optim_val_score = val_score
-				optim_param = [batch_size,hidden_size,lr]
-	print(optim_param)
+	else:
+		seeds = [1991,202205]
+		batch_size = 32
+		hidden_size = 12
+		lr = 1e-3
+		test = True
+		scaling = True
+		num_epoch = 2000
+		for seed in seeds:
+			train(num_epoch,test,scaling,seed,batch_size,hidden_size,lr)
