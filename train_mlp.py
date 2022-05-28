@@ -1,5 +1,6 @@
 import pandas as pd
 import os
+from tqdm import tqdm
 import numpy as np
 import matplotlib.pyplot as plt
 import torch
@@ -98,10 +99,11 @@ def loss_fn(pred,target):
 	loss = F.smooth_l1_loss(pred,target)
 	return loss
 
-def train(seed):
-	root_dir = "./data"
-	target_scenario = "re_03.csv" # using data_list = os.listdir() for all
+def train(seed,target_scenario):
+	#root_dir = "./data"
+	#target_scenario = "re_03.csv" # using data_list = os.listdir() for all
 	data_dir = os.path.join(root_dir,"processed_data/split",target_scenario)
+	#data_dir = target_scenario
 
 	batch_size = 32
 	hidden_size = 12
@@ -135,7 +137,7 @@ def train(seed):
 	mean_error_list = []
 	max_error_list = []
 
-	for epoch in range(num_epoch + 1):
+	for epoch in tqdm(range(num_epoch + 1),desc="epoch loop",leave = False):
 		for batch_idx, samples in enumerate(train_dataloader):
 			x_train, y_train = samples
 			x_train, y_train = x_train.to(device), y_train.to(device)
@@ -152,16 +154,25 @@ def train(seed):
 		if test:
 			with torch.no_grad():
 				mean_error,max_error = test_model(model,test_dataloader,device)
-				print('Epoch {:4d}/{}, mean error: {:.6f}, worst error: {:.6f}'\
-					.format(epoch,num_epoch,mean_error,max_error))
+				#print('Epoch {:4d}/{}, mean error: {:.6f}, worst error: {:.6f}'\
+				#	.format(epoch,num_epoch,mean_error,max_error))
 				mean_error_list.append(mean_error)
 				max_error_list.append(max_error)
 	min_mean_error = min(mean_error_list)
 	min_max_error = min(max_error_list)
-	print('min mean error: {:.6f}, min worst error: {:.6f}'.\
+	print("\n" + target_scenario + 'min mean error: {:.6f}, min worst error: {:.6f}'.\
 		format(min_mean_error,min_max_error))
 
 if __name__ == '__main__':
-	seeds = [1991,202205,20220502]
-	for seed in seeds:
-		train(seed)
+	#seeds = [1991,202205,20220502]
+	#for seed in seeds:
+	#	train(seed)
+	seed = 1991
+
+	root_dir = "./data"
+	data_root_dir = os.path.join(root_dir,"processed_data/split")
+	data_list = os.listdir(data_root_dir)
+	for data_name in tqdm(data_list,desc="data loop"):
+		#target_scenario = os.path.join(data_root_dir,data_name)
+		target_scenario = data_name
+		train(seed,target_scenario)

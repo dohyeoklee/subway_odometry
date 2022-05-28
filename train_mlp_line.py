@@ -154,8 +154,8 @@ def train(num_epoch,test,scaling,seed,batch_size,hidden_size,lr):
 	target_scenario = "up.csv"
 	data_dir = os.path.join(root_dir,"processed_data/up_re",target_scenario)
 
-	device = 'cuda' if torch.cuda.is_available() else 'cpu'
-	#device = 'cpu'
+	#device = 'cuda' if torch.cuda.is_available() else 'cpu'
+	device = 'cpu'
 	np.random.seed(seed)
 	torch.manual_seed(seed)
 	if device == 'cuda':
@@ -236,7 +236,7 @@ if __name__ == '__main__':
 		seeds = [1991,202205]
 		batch_size = 32
 		hidden_size = 12
-		lr = 1e-3
+		lr = 5e-2
 		test = True
 		scaling = True
 		num_epoch = 2000
