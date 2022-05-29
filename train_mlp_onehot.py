@@ -100,7 +100,7 @@ def loss_fn(pred,target):
 
 def train(seed):
 	root_dir = "./data"
-	target_scenario = "re_03.csv" # using data_list = os.listdir() for all
+	#target_scenario = "re_03.csv" # using data_list = os.listdir() for all
 	data_dir = os.path.join(root_dir,"processed_data/split",target_scenario)
 
 	batch_size = 32
@@ -161,6 +161,14 @@ def train(seed):
 		format(min_mean_error,min_max_error))
 
 if __name__ == '__main__':
+	#seeds = [1991,202205,20220502]
+	#for seed in seeds:
+	#	train(seed)
+
 	seeds = [1991,202205,20220502]
-	for seed in seeds:
-		train(seed)
+	root_dir = "./data"
+	data_root_dir = os.path.join(root_dir,"processed_data/split")
+	data_list = os.listdir(data_root_dir)
+	for data_name in tqdm(data_list,desc="data loop"):
+		for seed in seeds:
+			train(seed,data_name)

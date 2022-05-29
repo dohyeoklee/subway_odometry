@@ -1,6 +1,7 @@
 import pandas as pd
 import os
 from tqdm import tqdm
+import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import torch
@@ -87,8 +88,9 @@ def test_model(model,test_dataloader,device):
 		error = float(abs(pred_infer-gt_infer))
 		error_list.append(error)
 	mean_error = np.mean(error_list)
-	max_error = np.max(error_list)
-	return mean_error,max_error
+	worst_5_error = np.nanpercentile(error_list,95,axis=0)
+	worst_error = np.max(error_list)
+	return mean_error,worst_5_error,worst_error
 
 def init_weights(m):
     if isinstance(m, nn.Linear):
@@ -99,11 +101,8 @@ def loss_fn(pred,target):
 	loss = F.smooth_l1_loss(pred,target)
 	return loss
 
-def train(seed,target_scenario):
-	#root_dir = "./data"
-	#target_scenario = "re_03.csv" # using data_list = os.listdir() for all
-	data_dir = os.path.join(root_dir,"processed_data/split",target_scenario)
-	#data_dir = target_scenario
+def train(seed,target_scenario,result_data):
+	data_dir = os.path.join("./data/processed_data/split",target_scenario)
 
 	batch_size = 32
 	hidden_size = 12
@@ -133,9 +132,10 @@ def train(seed,target_scenario):
 	scheduler = torch.optim.lr_scheduler.StepLR(optimizer,step_size=500,gamma=0.8)
 
 	num_epoch = 3000
-	error = 0.0
+
 	mean_error_list = []
-	max_error_list = []
+	worst_error_list = []
+	worst_5_error_list = []
 
 	for epoch in tqdm(range(num_epoch + 1),desc="epoch loop",leave = False):
 		for batch_idx, samples in enumerate(train_dataloader):
@@ -153,26 +153,33 @@ def train(seed,target_scenario):
 
 		if test:
 			with torch.no_grad():
-				mean_error,max_error = test_model(model,test_dataloader,device)
+				mean_error,worst_5_error,worst_error = test_model(model,test_dataloader,device)
 				#print('Epoch {:4d}/{}, mean error: {:.6f}, worst error: {:.6f}'\
 				#	.format(epoch,num_epoch,mean_error,max_error))
 				mean_error_list.append(mean_error)
-				max_error_list.append(max_error)
+				worst_5_error_list.append(worst_5_error)
+				worst_error_list.append(worst_error)
 	min_mean_error = min(mean_error_list)
-	min_max_error = min(max_error_list)
-	print("\n" + target_scenario + 'min mean error: {:.6f}, min worst error: {:.6f}'.\
-		format(min_mean_error,min_max_error))
+	min_worst_5_error = min(worst_5_error_list)
+	min_worst_error = min(worst_error_list)
+	result_str = '{}, {}, {:.6f}, {:.6f}, {:.6f}'.\
+	format(target_scenario,seed,min_mean_error,min_worst_5_error,min_worst_error)
+	result_data = result_str.split(',')
+
+	result_data_list.append(result_data)
+	return result_data_list
 
 if __name__ == '__main__':
-	#seeds = [1991,202205,20220502]
-	#for seed in seeds:
-	#	train(seed)
-	seed = 1991
+	result_dir = "./result/mlp/"
+	result_data_list = []
 
+	seeds = [1991,202205,20220502]
 	root_dir = "./data"
 	data_root_dir = os.path.join(root_dir,"processed_data/split")
 	data_list = os.listdir(data_root_dir)
 	for data_name in tqdm(data_list,desc="data loop"):
-		#target_scenario = os.path.join(data_root_dir,data_name)
-		target_scenario = data_name
-		train(seed,target_scenario)
+		for seed in seeds:
+			result_data_list = train(seed,data_name,result_data_list)
+
+	df = pd.DataFrame(result_data_list,columns=['file name','seed','mean','95 percent','worst'])
+	df.to_csv(result_dir + 'mlp.csv',index=False)
