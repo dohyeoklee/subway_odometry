@@ -72,7 +72,6 @@ class SubwayDataset(Dataset):
 		df.drop(['Final Train ID'],axis=1,inplace=True)
 		result = df.groupby(['BS_1_1','RSRP_1_1','RSSI_1_1','RSRQ_1_1',\
 			'BS_2_1','RSRP_2_1','RSSI_2_1','RSRQ_2_1']).aggregate([np.mean])
-		result = result.fillna(0.0)['Distance from station']
 		result = self.huristic_processing_equal_space(result)
 		input_list = result.index.tolist()
 		input_list = list(map(list,input_list))
@@ -132,7 +131,7 @@ def train(seed,target_scenario,result_data):
 	#weight_decay=1e-3
 
 	batch_size = 64
-	hidden_size = 12
+	hidden_size = 24#12
 	lr = 5e-2
 	weight_decay=1e-3
 	test = True
@@ -182,8 +181,8 @@ def train(seed,target_scenario,result_data):
 		if test:
 			with torch.no_grad():
 				mean_error,worst_5_error,worst_error = test_model(model,test_dataloader,device)
-				print('Epoch {:4d}/{}, mean error: {:.6f}, worst error: {:.6f}'\
-					.format(epoch,num_epoch,mean_error,worst_error))
+				#print('Epoch {:4d}/{}, mean error: {:.6f}, 95 error: {:.6f}, worst error: {:.6f}'\
+				#	.format(epoch,num_epoch,mean_error,worst_5_error,worst_error))
 				mean_error_list.append(mean_error)
 				worst_5_error_list.append(worst_5_error)
 				worst_error_list.append(worst_error)
@@ -192,6 +191,7 @@ def train(seed,target_scenario,result_data):
 	min_worst_error = min(worst_error_list)
 	result_str = '{}, {}, {:.6f}, {:.6f}, {:.6f}'.\
 	format(target_scenario,seed,min_mean_error,min_worst_5_error,min_worst_error)
+	print(result_str)
 	result_data = result_str.split(',')
 
 	result_data_list.append(result_data)
@@ -206,10 +206,10 @@ if __name__ == '__main__':
 	root_dir = "./data"
 	data_root_dir = os.path.join(root_dir,"processed_data/split")
 	#data_list = os.listdir(data_root_dir)
-	data_list = ["re_13.csv"]
+	data_list = ["re_33.csv"]
 	for data_name in tqdm(data_list,desc="data loop"):
 		for seed in seeds:
 			result_data_list = train(seed,data_name,result_data_list)
 
-	df = pd.DataFrame(result_data_list,columns=['file name','seed','mean','95 percent','worst'])
-	df.to_csv(result_dir + 'mlp_onehot.csv',index=False)
+	#df = pd.DataFrame(result_data_list,columns=['file name','seed','mean','95 percent','worst'])
+	#df.to_csv(result_dir + 'mlp_onehot.csv',index=False)
